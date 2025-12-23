@@ -1,0 +1,15 @@
+server:
+  host: "0.0.0.0"
+  port: 8080
+
+database:
+  dsn: "./data.db"
+  max_connections: 20
+
+jwt:
+  secret: "your-256-bit-secret-key-here"
+  expiration: 86400  # 24 小时
+
+logging:
+  level: "debug"
+  file: "./logs/app.log"
