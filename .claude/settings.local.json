@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go run:*)",
+      "Bash(go build:*)",
+      "WebSearch",
+      "WebFetch(domain:www.jetbrains.com)",
+      "WebFetch(domain:github.com)"
+    ]
+  }
+}

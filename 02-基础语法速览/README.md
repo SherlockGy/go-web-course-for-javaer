@@ -69,17 +69,284 @@ age := 18
 
 **📌 零值设计理念**
 
-Go 的变量永远有值，未初始化时为"零值"。这不是 bug，是特性：
+Go 的变量永远有值，未初始化时为"零值"。这不是 bug，是特性——**让很多类型"开箱即用"，无需初始化**。
 
 ```go
 var count int      // 0，可以直接 count++
 var name string    // ""，可以直接 name += "hello"
 var ok bool        // false，可以直接用于条件判断
-
-// Java 中 null 引发的问题，Go 通过零值避免了
-var sb strings.Builder  // 零值可用，无需 new
-sb.WriteString("hello") // 直接使用，不会 NPE
 ```
+
+**🆚 与 Java 对比：null 的噩梦 vs 零值的安全**
+
+```java
+// Java: null 是万恶之源
+StringBuilder sb = null;
+sb.append("hello");  // 💥 NullPointerException!
+
+// Java 需要防御性编程
+if (sb != null) {
+    sb.append("hello");
+}
+```
+
+```go
+// Go: 很多类型的零值可以直接使用
+var sb strings.Builder  // 零值可用，无需 new 或 make
+sb.WriteString("hello") // ✅ 直接使用，不会 panic
+sb.WriteString(" world")
+fmt.Println(sb.String()) // "hello world"
+```
+
+> **洞察**：Java 的 `null` 表示"没有对象"，但程序员经常忘记检查。Go 的零值设计让很多类型在未初始化时就能安全使用，从根本上减少了空指针类问题。
+
+---
+
+#### 2.1 零值最佳实践（先记住这个）
+
+**📌 一句话总结：只有 map、channel、指针 需要初始化，其他放心用零值。**
+
+```go
+// ✅ 这些零值直接用，不用想
+var count int              // 0，直接 ++
+var name string            // ""，直接拼接
+var ok bool                // false，直接判断
+var items []string         // nil，直接 append
+var sb strings.Builder     // 空，直接 WriteString
+var mu sync.Mutex          // 未锁定，直接 Lock
+
+// ⚠️ 只有这三个需要 make 初始化
+m := make(map[string]int)  // map 必须初始化才能写入
+ch := make(chan int)       // channel 必须初始化
+// 指针需要指向有效地址
+```
+
+这就是 Go 零值设计的**一致性**：
+- **值类型**（int、string、bool、struct）→ 零值总是可用
+- **引用类型**（slice）→ 零值可用（append 会自动分配）
+- **需要底层资源的类型**（map、channel）→ 必须 make
+
+**📌 nil slice 安全操作指南**
+
+```go
+var s []int  // nil slice
+
+// ✅ 这些都安全
+len(s)                    // 0
+cap(s)                    // 0
+s = append(s, 1)          // 正常工作
+for _, v := range s { }   // 空的不执行，不会 panic
+
+// ❌ 下标访问会 panic（因为长度是 0）
+s[0]  // panic: index out of range
+```
+
+**一句话：nil slice 当空集合用，append 和 range 随便用，下标访问先查长度。**
+
+```go
+// 常见用法
+var users []User
+users = append(users, user1, user2)  // 直接 append
+
+for _, u := range users {  // 安全遍历
+    fmt.Println(u.Name)
+}
+
+if len(users) > 0 {  // 取值前检查长度
+    first := users[0]
+}
+```
+
+---
+
+#### 2.2 如何判断一个类型的零值是否可用？
+
+为什么 `strings.Builder` 零值可用，但 `map` 不行？看内部结构：
+
+```go
+// strings.Builder 内部
+type Builder struct {
+    buf []byte  // slice 零值是 nil，但 append(nil, ...) 可以工作
+}
+
+// 所以 Builder 零值可用——它的字段零值都能正常工作
+```
+
+**📌 判断规则**
+
+| 判断方法 | 说明 |
+|---------|------|
+| **看文档** | 好的库会明确说明，如 `sync.Mutex`: "A Mutex must not be copied after first use. The zero value for a Mutex is an unlocked mutex." |
+| **看是否有 `NewXxx()` 构造函数** | 如果库提供了构造函数，通常意味着零值不够用 |
+| **看内部是否有 map/chan 字段** | 如果方法需要写入这些字段，零值会 panic |
+
+**📌 标准库中"零值可用"的典型类型**
+
+```go
+var mu sync.Mutex          // ✅ 文档明确说明零值是未锁定的锁
+var wg sync.WaitGroup      // ✅ 零值可用
+var buf bytes.Buffer       // ✅ 零值是空缓冲区
+var sb strings.Builder     // ✅ 零值是空构建器
+var client http.Client     // ✅ 零值使用默认配置
+var once sync.Once         // ✅ 零值可用
+```
+
+> **洞察**：Go 标准库的设计原则是尽量让零值可用。当你设计自己的结构体时，也应该遵循这个原则——让用户能 `var x MyType` 直接使用。
+
+---
+
+#### 2.3 利用零值简化代码（实战案例）
+
+**案例 1：计数器无需初始化**
+
+```go
+// Go: 零值直接可用
+counts := make(map[string]int)
+for _, word := range words {
+    counts[word]++  // 零值 0，直接 ++，无需判断 key 是否存在
+}
+```
+
+```java
+// Java: 需要 getOrDefault
+Map<String, Integer> counts = new HashMap<>();
+for (String word : words) {
+    counts.put(word, counts.getOrDefault(word, 0) + 1);
+}
+```
+
+**案例 2：布尔零值做默认配置**
+
+```go
+type Config struct {
+    Debug    bool  // 零值 false = 默认不开启调试 ✅ 合理
+    MaxRetry int   // 零值 0 = 不重试？需要考虑是否合理
+}
+
+// 零值配置可以直接使用
+var cfg Config
+if cfg.Debug {
+    log.Println("debug mode")
+}
+```
+
+**案例 3：strings.Builder 零值可用**
+
+```go
+func buildSQL(conditions []string) string {
+    var sb strings.Builder  // 📌 无需 new，零值即可用
+    sb.WriteString("SELECT * FROM users WHERE 1=1")
+    for _, cond := range conditions {
+        sb.WriteString(" AND ")
+        sb.WriteString(cond)
+    }
+    return sb.String()
+}
+```
+
+---
+
+#### 2.4 零值陷阱详解（需要注意的边界情况）
+
+前面说了"只有 map、channel、指针需要初始化"，这里详细解释为什么：
+
+**陷阱 1：nil map 写入 panic**
+
+```go
+var m map[string]int  // nil map
+fmt.Println(m["key"]) // ✅ 读取返回零值 0，不会 panic
+m["key"] = 1          // 💥 panic: assignment to entry in nil map
+
+// 正确做法
+m = make(map[string]int)
+m["key"] = 1          // ✅ 现在可以写入
+```
+
+> 这和 Java 的 NPE 类似，但更隐蔽——**读取不报错，写入才 panic**。
+
+**陷阱 2：nil slice vs 空 slice 的 JSON 序列化**
+
+```go
+var nilSlice []int        // nil
+emptySlice := []int{}     // 空但非 nil
+
+// 功能上几乎等价
+nilSlice = append(nilSlice, 1)    // ✅ 都可以
+emptySlice = append(emptySlice, 1) // ✅
+
+// 但 JSON 序列化结果不同！
+json.Marshal(nilSlice)    // null  ← API 返回这个可能有问题
+json.Marshal(emptySlice)  // []    ← 前端通常期望这个
+```
+
+| 场景 | 推荐 | 原因 |
+|------|------|------|
+| 函数内部使用 | `var s []T` | nil slice 可以直接 append |
+| JSON API 返回 | `make([]T, 0)` 或 `[]T{}` | 避免返回 `null` |
+
+**陷阱 3：time.Time 零值是 0001-01-01**
+
+```go
+var t time.Time
+fmt.Println(t.Format(time.DateTime))  // 0001-01-01 00:00:00 😱
+
+// 判断是否为零值
+if t.IsZero() {
+    fmt.Println("时间未设置")
+}
+```
+
+🆚 Java 用 `null` 表示未设置，Go 用 `IsZero()` 或指针 `*time.Time`。
+
+---
+
+#### 2.5 时间处理（Go 1.20+ 最佳实践）
+
+既然提到了 `time.Time` 零值，这里完整介绍时间处理：
+
+```go
+import "time"
+
+now := time.Now()
+
+// ✅ Go 1.20+ 推荐：使用预定义常量
+fmt.Println(now.Format(time.DateTime))  // 2024-01-15 14:30:00
+fmt.Println(now.Format(time.DateOnly))  // 2024-01-15
+fmt.Println(now.Format(time.TimeOnly))  // 14:30:00
+
+// ⚠️ 旧写法（仍然有效，但不推荐）
+fmt.Println(now.Format("2006-01-02 15:04:05"))
+```
+
+**Go 1.20+ 预定义时间常量**：
+
+| 常量 | 值 | 说明 |
+|------|-----|------|
+| `time.DateTime` | `"2006-01-02 15:04:05"` | 日期时间 |
+| `time.DateOnly` | `"2006-01-02"` | 仅日期 |
+| `time.TimeOnly` | `"15:04:05"` | 仅时间 |
+| `time.RFC3339` | `"2006-01-02T15:04:05Z07:00"` | 标准格式（API 常用） |
+
+> **📌 为什么是 2006-01-02 15:04:05？**
+> 这是 Go 的独特设计：`01/02 03:04:05PM '06 -0700`（美式日期顺序 1-2-3-4-5-6-7），便于记忆。
+
+**🆚 与 Java 对比**
+
+```java
+// Java: 使用 DateTimeFormatter
+LocalDateTime now = LocalDateTime.now();
+String formatted = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+```
+
+```go
+// Go: 使用参考时间作为模板
+now := time.Now()
+formatted := now.Format(time.DateTime)  // 或 "2006-01-02 15:04:05"
+```
+
+> **洞察**：Java 用 `yyyy-MM-dd` 这种符号模式，Go 用具体的参考时间 `2006-01-02`。Go 的方式更直观——格式串本身就是输出示例。
+
+---
 
 **📌 int vs int64 如何选择？**
 
@@ -424,22 +691,101 @@ func modifyUser(u *User) {
 
 ## 作业任务
 
-### 任务描述
-完成 `homework/main.go`，实现一个简单的用户查找功能。
+本章包含 4 个作业，分别对应不同的知识点。建议按顺序完成。
 
-### 要求
-1. 定义 `User` 结构体，包含 `ID`、`Name`、`Email` 字段
-2. 实现 `String()` 方法（满足 `fmt.Stringer` 接口）
-3. 编写 `FindUser(id int64) (*User, error)` 函数：
-   - id > 0：返回模拟用户
-   - id <= 0：返回 `ErrInvalidID` 错误
-4. 使用 `errors.Is` 检查错误
+| 作业 | 目录 | 知识点 | 难度 |
+|-----|------|-------|------|
+| 1. 词频统计 | `homework/01-word-count/` | 零值、map、slice、range | ⭐ |
+| 2. 用户管理 | `homework/02-user-manager/` | 结构体、方法、接口 | ⭐⭐ |
+| 3. 安全计算器 | `homework/03-calculator/` | 多返回值、错误处理 | ⭐⭐ |
+| 4. 计数器 | `homework/04-counter/` | 指针、值传递 | ⭐⭐ |
 
-### 验收标准
+---
+
+### 作业 1：词频统计
+
+**目标**：理解 map 的零值陷阱，利用 int 零值简化计数逻辑
+
 ```bash
-cd homework && go run main.go
+cd homework/01-word-count && go run main.go
 ```
-输出应包含：成功查找用户、错误处理演示。
+
+**要求**：
+1. 实现 `CountWords(words []string) map[string]int` 统计词频
+2. 实现 `TopWords(counts map[string]int, n int) []string` 返回 Top N
+
+**提示**：
+- `counts[word]++` 利用 int 零值直接自增，无需判断 key 是否存在
+
+---
+
+### 作业 2：用户管理
+
+**目标**：掌握结构体、方法定义、接口的隐式实现
+
+```bash
+cd homework/02-user-manager && go run main.go
+```
+
+**要求**：
+1. 定义 `User` 结构体和 `NewUser` 构造函数
+2. 实现 `String()` 方法满足 `fmt.Stringer` 接口
+3. 实现 `Activate()` 和 `Deactivate()` 方法
+
+**思考**：为什么 `String()` 用值接收者，`Activate()` 用指针接收者？
+
+---
+
+### 作业 3：安全计算器
+
+**目标**：掌握 Go 的多返回值和错误处理模式
+
+```bash
+cd homework/03-calculator && go run main.go
+```
+
+**要求**：
+1. 定义哨兵错误 `ErrDivideByZero`、`ErrNegativeSqrt`
+2. 实现 `SafeDivide`、`SafeSqrt`、`Calculate` 函数
+3. 使用 `errors.Is` 检查具体错误类型
+
+**对比 Java**：
+```java
+// Java: 抛异常
+if (b == 0) throw new ArithmeticException("除数不能为零");
+```
+```go
+// Go: 返回错误
+if b == 0 { return 0, ErrDivideByZero }
+```
+
+---
+
+### 作业 4：计数器
+
+**目标**：理解 Go 的值传递机制和指针的必要性
+
+```bash
+cd homework/04-counter && go run main.go
+```
+
+**要求**：
+1. 实现 `IncrementWrong()` —— 值接收者，故意写"错"
+2. 实现 `IncrementRight()` —— 指针接收者，正确实现
+3. 观察并理解两者的区别
+
+**这是 Java 程序员最容易困惑的点**：
+```java
+// Java: c 是引用，方法总能修改原对象
+Counter c = new Counter();
+c.increment();  // 总是工作
+```
+```go
+// Go: c 是值，值接收者收到的是拷贝
+c := Counter{}
+c.IncrementWrong()  // 不工作！修改的是拷贝
+c.IncrementRight()  // 需要指针接收者
+```
 
 ---
 

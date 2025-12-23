@@ -1,33 +1,45 @@
-// 作业：输出当前时间
+// 作业：输出个人学习计划
 //
 // 📌 要求：
-//  1. 使用 time.DateTime 常量格式化时间（Go 1.20+ 新特性）
-//  2. 输出格式：当前时间: 2024-01-15 14:30:00
-//  3. 不要使用硬编码的时间格式字符串 "2006-01-02 15:04:05"
+//  1. 使用 fmt.Println 输出标题和结尾
+//  2. 使用 fmt.Printf 格式化输出个人信息
+//  3. 练习 %s（字符串）和 %d（整数）占位符
+//
+// 📌 预期输出：
+//
+//	=== Go 学习计划 ===
+//	姓名: 张三
+//	学习目标: 掌握 Go Web 开发
+//	预计学习天数: 30 天
+//	=== 开始学习！===
 //
 // 📌 提示：
-//   - now := time.Now() 获取当前时间
-//   - now.Format(layout) 格式化时间（now 是 time.Time 类型）
-//   - time.DateTime 是 Go 1.20+ 预定义的时间格式常量
-//   - fmt.Printf 可以格式化输出
+//   - fmt.Println("文本") 直接输出并换行
+//   - fmt.Printf("格式", 参数...) 格式化输出，需要手动加 \n
+//   - IDE 快捷键：fp + Tab → fmt.Println()（GoLand/VS Code 通用）
 //
 // 📌 运行：go run main.go
 package main
 
-import (
-	"fmt"
-	"time"
-)
+import "fmt"
 
 func main() {
-	// TODO: 1. 获取当前时间
-	// 提示：使用 time.Now()
+	// TODO: 1. 定义变量
+	// name := "你的名字"
+	// goal := "你的学习目标"
+	// days := 30
 
-	// TODO: 2. 使用 time.DateTime 格式化并输出
-	// 提示：使用 fmt.Printf("当前时间: %s\n", ...)
+	// TODO: 2. 使用 fmt.Println 输出标题
+	// fmt.Println("=== Go 学习计划 ===")
 
-	// 以下是占位输出，请替换为你的实现
+	// TODO: 3. 使用 fmt.Printf 输出个人信息
+	// fmt.Printf("姓名: %s\n", name)
+	// fmt.Printf("学习目标: %s\n", goal)
+	// fmt.Printf("预计学习天数: %d 天\n", days)
+
+	// TODO: 4. 使用 fmt.Println 输出结尾
+	// fmt.Println("=== 开始学习！===")
+
+	// 以下是占位输出，完成后删除
 	fmt.Println("请完成作业")
-	_ = time.Now      // 删除这行，这只是为了避免 import 报错
-	_ = time.DateTime // 删除这行，这只是为了避免 import 报错
 }
