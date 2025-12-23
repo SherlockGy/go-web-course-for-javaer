@@ -215,9 +215,8 @@ fmt.Println(now.Format("2006-01-02 15:04:05"))
 ```go
 import "time"
 
-time.Now()              // 获取当前时间
-time.DateTime           // 预定义格式常量 (Go 1.20+)
-t.Format(layout)        // 格式化时间
+now := time.Now()                      // 获取当前时间
+now.Format(time.DateTime)              // 格式化为 "2024-01-15 14:30:00"
 ```
 
 > 📌 请自行完成 `homework/main.go` 中的 TODO 部分

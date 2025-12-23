@@ -9,8 +9,6 @@ package main
 
 import (
 	"fmt"
-	"log"
-
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
